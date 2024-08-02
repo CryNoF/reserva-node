@@ -1,0 +1,68 @@
+const express = require('express');
+const axios = require('axios');
+const cheerio = require('cheerio');
+const cors = require('cors');
+
+const app = express();
+const port = 3000;
+
+app.use(cors());
+app.use(express.json());
+
+const baseUrl = "https://deportemunicipaltemuco.cl/recintos/{}/arrendar/0?tag_id=16&date={}&range=60&start_time={}:00&end_time={}:00";
+
+const recintos = {
+    804: ["Germán Becker", "Temuco"],
+    855: ["Labranza", "Labranza"]
+};
+
+app.post('/check-availability', async (req, res) => {
+    const { startDate, daysToIterate, selectedRecintos } = req.body;
+    
+    let results = [];
+
+    for (let i = 0; i < daysToIterate; i++) {
+        const currentDate = new Date(startDate);
+        currentDate.setDate(currentDate.getDate() + i);
+        const formattedDate = currentDate.toLocaleDateString('es-CL');
+        const dayOfWeek = currentDate.toLocaleDateString('es-ES', { weekday: 'long' });
+
+        for (const recintoCode of selectedRecintos) {
+            const [recintoName, city] = recintos[recintoCode];
+
+            for (let hour = 8; hour < 21; hour++) {
+                const url = baseUrl.format(recintoCode, formattedDate, hour, hour + 1);
+
+                try {
+                    const response = await axios.get(url);
+                    const $ = cheerio.load(response.data);
+
+                    const canchas = $('h5.complexForm-content-facilityTitle')
+                        .filter((_, el) => $(el).text().includes('Cancha'))
+                        .map((_, el) => $(el).text().trim())
+                        .get();
+
+                    if (canchas.length > 0) {
+                        results.push({
+                            recintoName,
+                            recintoCode,
+                            date: formattedDate,
+                            dayOfWeek,
+                            hour: `${hour.toString().padStart(2, '0')}:00`,
+                            canchas,
+                            bookingUrl: url
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error fetching data for ${recintoName} on ${formattedDate} at ${hour}:00`);
+                }
+            }
+        }
+    }
+
+    res.json(results);
+});
+
+app.listen(port, () => {
+    console.log(`Server running at http://localhost:${port}`);
+});
