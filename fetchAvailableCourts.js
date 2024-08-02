@@ -11,6 +11,11 @@ const recintos = {
 
 const canchas = ["Cancha Tenis 1", "Cancha Tenis 2", "Cancha Tenis 3", "Cancha Tenis 4"];
 
+const canchaFormats = {
+    804: (cancha) => cancha, // Germán Becker format
+    855: (cancha) => cancha.replace("Cancha Tenis", "Cancha de Tenis") // Labranza format
+};
+
 async function fetchAvailableCourts(startDate, selectedRecintos, daysToIterate, selectedCanchas, startHour, endHour) {
     console.log('Starting fetchAvailableCourts with params:', { startDate, selectedRecintos, daysToIterate, selectedCanchas, startHour, endHour });
     let results = [];
@@ -39,13 +44,14 @@ async function fetchAvailableCourts(startDate, selectedRecintos, daysToIterate, 
                         const $ = cheerio.load(response.data);
                         const elementos = $('h5.complexForm-content-facilityTitle');
                         let canchasEncontradas = elementos
-                            .filter((_, el) => $(el).text().includes('Cancha Tenis'))
+                            .filter((_, el) => $(el).text().includes('Tenis'))
                             .map((_, el) => $(el).text().trim())
                             .get();
 
                         if (selectedCanchas.length > 0) {
+                            const formattedSelectedCanchas = selectedCanchas.map(cancha => canchaFormats[recintoCode](cancha));
                             canchasEncontradas = canchasEncontradas.filter(cancha => 
-                                selectedCanchas.includes(cancha)
+                                formattedSelectedCanchas.includes(cancha)
                             );
                         }
 
